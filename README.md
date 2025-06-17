@@ -998,6 +998,610 @@ Building a secure authentication system doesn't have to be daunting. By leveragi
 *Happy coding! Secure your applications and deliver robust solutions with ease.*  
    
 ---  
+
+## Full Code:
+
+```popup.js
+document.addEventListener('DOMContentLoaded', () => {  
+  init();  
+});  
+  
+function init() {  
+  document.getElementById('register').addEventListener('click', register);  
+  document.getElementById('login').addEventListener('click', login);  
+  document.getElementById('logout').addEventListener('click', logout);  
+  document.getElementById('accessProtected').addEventListener('click', accessProtected);  
+  
+  // Check if user is logged in  
+  checkLoginStatus();  
+}  
+  
+async function checkLoginStatus() {  
+  try {  
+    const tokens = await getStoredTokens();  
+    if (tokens) {  
+      showLogoutButton();  
+    } else {  
+      hideLogoutButton();  
+    }  
+  } catch {  
+    hideLogoutButton();  
+  }  
+}  
+  
+function showLogoutButton() {  
+  document.getElementById('logout').classList.remove('hidden');  
+}  
+  
+function hideLogoutButton() {  
+  document.getElementById('logout').classList.add('hidden');  
+}  
+  
+async function register() {  
+  const username = document.getElementById('username').value.trim();  
+  const password = document.getElementById('password').value;  
+  
+  if (!username || !password) {  
+    setStatus('Please enter a username and password.', 'error');  
+    return;  
+  }  
+  
+  if (password.length < 8) {  
+    setStatus('Password must be at least 8 characters long.', 'error');  
+    return;  
+  }  
+  
+  // Send username and password to server  
+  try {  
+    const response = await fetch('https://ranfysvalle02--jwt-auth-api-fastapi-app.modal.run/register', {  
+      method: 'POST',  
+      headers: {  
+        'Content-Type': 'application/json'  
+      },  
+      body: JSON.stringify({  
+        username: username,  
+        password: password  
+      })  
+    });  
+  
+    const result = await response.json();  
+    if (response.ok && result.status === 'ok') {  
+      localStorage.setItem('username', username);  
+      setStatus('Registration successful.', 'success');  
+      document.getElementById('password').value = '';  
+    } else {  
+      setStatus('Registration failed: ' + result.message, 'error');  
+    }  
+  } catch (error) {  
+    setStatus('Registration failed: ' + error.message, 'error');  
+  }  
+}  
+  
+async function login() {  
+  const username = document.getElementById('username').value.trim();  
+  const password = document.getElementById('password').value;  
+  
+  if (!username || !password) {  
+    setStatus('Please enter your username and password.', 'error');  
+    return;  
+  }  
+  
+  try {  
+    const response = await fetch('https://ranfysvalle02--jwt-auth-api-fastapi-app.modal.run/authenticate', {  
+      method: 'POST',  
+      headers: {  
+        'Content-Type': 'application/json'  
+      },  
+      body: JSON.stringify({  
+        username: username,  
+        password: password  
+      })  
+    });  
+  
+    const result = await response.json();  
+    if (response.ok && result.status === 'ok') {  
+      // Store tokens securely  
+      await storeTokens(result.access_token, result.refresh_token);  
+      setStatus('Authentication successful.', 'success');  
+      showLogoutButton();  
+      document.getElementById('password').value = '';  
+    } else {  
+      setStatus('Authentication failed: ' + result.message, 'error');  
+    }  
+  } catch (error) {  
+    setStatus('Authentication failed: ' + error.message, 'error');  
+  }  
+}  
+  
+async function logout() {  
+  // Clear tokens and user data  
+  await chrome.storage.local.remove('auth_tokens');  
+  localStorage.removeItem('username');  
+  setStatus('Logged out successfully.', 'success');  
+  hideLogoutButton();  
+}  
+  
+async function storeTokens(accessToken, refreshToken) {  
+  const tokens = {  
+    access_token: accessToken,  
+    refresh_token: refreshToken,  
+    access_token_expiry: getTokenExpiry(accessToken)  
+  };  
+  // Store tokens using storage API  
+  await chrome.storage.local.set({ 'auth_tokens': tokens });  
+}  
+  
+function getTokenExpiry(token) {  
+  const payload = JSON.parse(atob(token.split('.')[1]));  
+  return payload.exp * 1000; // Convert to milliseconds  
+}  
+  
+async function getStoredTokens() {  
+  return new Promise((resolve, reject) => {  
+    chrome.storage.local.get('auth_tokens', (data) => {  
+      if (chrome.runtime.lastError) {  
+        reject(chrome.runtime.lastError);  
+      } else {  
+        resolve(data.auth_tokens);  
+      }  
+    });  
+  });  
+}  
+  
+async function getAccessToken() {  
+  const tokens = await getStoredTokens();  
+  
+  if (!tokens) {  
+    throw new Error('No tokens found. Please login.');  
+  }  
+  
+  const currentTime = Date.now();  
+  
+  if (currentTime > tokens.access_token_expiry) {  
+    // Access token expired, refresh it  
+    const newTokens = await refreshAccessToken(tokens.refresh_token);  
+    return newTokens.access_token;  
+  } else {  
+    return tokens.access_token;  
+  }  
+}  
+  
+async function refreshAccessToken(refreshToken) {  
+  const response = await fetch('https://ranfysvalle02--jwt-auth-api-fastapi-app.modal.run/refresh', {  
+    method: 'POST',  
+    headers: {  
+      'Content-Type': 'application/json'  
+    },  
+    body: JSON.stringify({  
+      refresh_token: refreshToken  
+    })  
+  });  
+  
+  const result = await response.json();  
+  if (response.ok && result.status === 'ok') {  
+    await storeTokens(result.access_token, result.refresh_token);  
+    return {  
+      access_token: result.access_token,  
+      refresh_token: result.refresh_token  
+    };  
+  } else {  
+    throw new Error('Failed to refresh token: ' + result.message);  
+  }  
+}  
+  
+async function accessProtected() {  
+  try {  
+    const accessToken = await getAccessToken();  
+  
+    const response = await fetch('https://ranfysvalle02--jwt-auth-api-fastapi-app.modal.run/protected', {  
+      method: 'GET',  
+      headers: {  
+        'Authorization': 'Bearer ' + accessToken  
+      }  
+    });  
+  
+    const result = await response.json();  
+    if (response.ok && result.status === 'ok') {  
+      setStatus(result.message, 'success');  
+    } else {  
+      setStatus('Failed to access protected resource: ' + result.message, 'error');  
+    }  
+  } catch (error) {  
+    setStatus(error.message, 'error');  
+  }  
+}  
+  
+let statusTimeout;  
+function setStatus(message, type) {  
+  clearTimeout(statusTimeout);  
+  const statusDiv = document.getElementById('status');  
+  statusDiv.textContent = message;  
+  statusDiv.className = '';  
+  statusDiv.classList.add(type === 'error' ? 'error' : 'success');  
+  statusDiv.classList.add('show');  
+  statusTimeout = setTimeout(() => {  
+    statusDiv.classList.remove('show');  
+  }, 5000);  
+}  
+```
+
+```popup.html
+
+<!DOCTYPE html>  
+<html>  
+<head>  
+  <title>Password Auth Demo</title>  
+  <style>  
+    body {  
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;  
+      margin: 0;  
+      padding: 20px; /* Added padding to the body */  
+      width: 360px;  
+      min-height: 500px;  
+      box-sizing: border-box;  
+      background: linear-gradient(to bottom right, #ffffff, #ece9e6);  
+      display: flex;  
+      flex-direction: column;  
+      align-items: center;  
+    }  
+    .container {  
+      width: 100%;  
+    }  
+    h1 {  
+      margin-top: 30px;  
+      font-size: 28px;  
+      color: #333;  
+      text-align: center;  
+      animation: fadeInDown 0.5s ease-out;  
+    }  
+    .input-group {  
+      position: relative;  
+      margin-bottom: 20px;  
+      animation: fadeInUp 0.5s ease-out;  
+    }  
+    .input-group:last-of-type {  
+      margin-bottom: 30px;  
+    }  
+    input {  
+      width: 85%;  
+      padding: 15px 20px;  
+      font-size: 16px;  
+      border: none;  
+      border-radius: 30px;  
+      box-shadow: 0 3px 6px rgba(0,0,0,0.1);  
+      outline: none;  
+      transition: all 0.3s ease;  
+      background-color: #fff;  
+    }  
+    input:focus {  
+      box-shadow: 0 3px 6px rgba(0,0,0,0.2);  
+    }  
+    input::placeholder {  
+      color: #aaa;  
+    }  
+    button {  
+      width: 100%;  
+      padding: 15px 20px;  
+      font-size: 18px;  
+      color: #fff;  
+      background: linear-gradient(135deg, #6e8efb, #a777e3);  
+      border: none;  
+      border-radius: 30px;  
+      cursor: pointer;  
+      transition: transform 0.2s ease, box-shadow 0.2s ease;  
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);  
+      margin-bottom: 15px;  
+    }  
+    button:hover {  
+      box-shadow: 0 6px 8px rgba(0,0,0,0.15);  
+    }  
+    button:active {  
+      transform: translateY(2px);  
+      box-shadow: 0 3px 5px rgba(0,0,0,0.1);  
+    }  
+    #logout {  
+      background: #ff6961;  
+      background: linear-gradient(135deg, #ff7e5f, #feb47b);  
+    }  
+    #accessProtected {  
+      background: #24c6dc;  
+      background: linear-gradient(135deg, #24c6dc, #514a9d);  
+    }  
+    #status {  
+      margin: 20px 0;  
+      padding: 15px;  
+      border-radius: 5px;  
+      font-size: 16px;  
+      text-align: center;  
+      opacity: 0;  
+      transform: translateY(-10px);  
+      transition: opacity 0.3s ease, transform 0.3s ease;  
+      max-width: 320px;  
+      animation: fadeIn 0.5s ease-out;  
+    }  
+    #status.show {  
+      opacity: 1;  
+      transform: translateY(0);  
+    }  
+    #status.success {  
+      background-color: #d4edda;  
+      color: #155724;  
+      border: 1px solid #c3e6cb;  
+    }  
+    #status.error {  
+      background-color: #f8d7da;  
+      color: #721c24;  
+      border: 1px solid #f5c6cb;  
+    }  
+    .hidden {  
+      display: none;  
+    }  
+    @keyframes fadeInUp {  
+      from { opacity: 0; transform: translateY(20px); }  
+      to { opacity: 1; transform: translateY(0); }  
+    }  
+    @keyframes fadeInDown {  
+      from { opacity: 0; transform: translateY(-20px); }  
+      to { opacity: 1; transform: translateY(0); }  
+    }  
+    @keyframes fadeIn {  
+      from { opacity: 0; }  
+      to { opacity: 1; }  
+    }  
+  </style>  
+</head>  
+<body>  
+  <h1>Password Auth</h1>  
+  <div class="container">  
+    <div id="status" class=""></div>  
+    <div id="auth-section">  
+      <div class="input-group">  
+        <input type="text" id="username" placeholder="Username" autocomplete="username" />  
+      </div>  
+      <div class="input-group">  
+        <input type="password" id="password" placeholder="Password (min 8 chars)" autocomplete="current-password" />  
+      </div>  
+      <button id="register">Register</button>  
+      <button id="login">Login</button>  
+      <button id="accessProtected">Access Protected Resource</button>  
+      <button id="logout" class="hidden">Logout</button>  
+    </div>  
+  </div>  
+  <script src="popup.js"></script>  
+</body>  
+</html>
+
+```
+
+```modal-app.py
+# main.py  
+  
+import os  
+import jwt  
+import datetime  
+from typing import Dict, Optional  
+  
+from fastapi import FastAPI, HTTPException, Body, Depends, Header, status  
+from fastapi.responses import JSONResponse  
+from fastapi.middleware.cors import CORSMiddleware  
+from pydantic import BaseModel, Field  
+from passlib.context import CryptContext  
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError  
+import modal  
+from pymongo import MongoClient  
+from bson.objectid import ObjectId  
+  
+# --- Configuration ---  
+  
+# Load environment variables or set default values  
+JWT_SECRET = os.environ.get('JWT_SECRET', 'your-secret-key')  
+JWT_ALGORITHM = 'HS256'  
+ACCESS_TOKEN_EXPIRE_MINUTES = 15  
+REFRESH_TOKEN_EXPIRE_DAYS = 180  # Approximately 6 months  
+  
+# MongoDB configuration  
+MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')  
+  
+# --- Modal Setup ---  
+  
+# Define the image with necessary Python libraries.  
+image = modal.Image.debian_slim(python_version="3.12").pip_install(  
+    "fastapi[standard]==0.115.4",  
+    "pymongo==4.7.2",  
+    "pydantic==2.7.1",  
+    "passlib==1.7.4",  
+    "PyJWT==2.8.0"  
+)  
+  
+# Create a Modal App instance.  
+app = modal.App("jwt-auth-api", image=image)  
+  
+# --- FastAPI App Setup ---  
+  
+# Create the FastAPI app.  
+web_app = FastAPI(  
+    title="JWT Auth API",  
+    description="An API with JWT authentication using FastAPI, Modal, and MongoDB.",  
+)  
+  
+# Allow CORS for development purposes  
+web_app.add_middleware(  
+    CORSMiddleware,  
+    allow_origins=["*"],  # For development, consider specifying origins  
+    allow_credentials=True,  
+    allow_methods=["*"],  
+    allow_headers=["*"],  
+)  
+  
+# --- Set up CryptContext for password hashing ---  
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")  
+  
+# --- Initialize MongoDB client ---  
+client = MongoClient(MONGO_URI)  
+db = client.auth_db  # Use a dedicated database for authentication  
+users_collection = db.users  
+refresh_tokens_collection = db.refresh_tokens  
+  
+# --- Pydantic Models ---  
+  
+class UserRegister(BaseModel):  
+    username: str = Field(..., example="user1")  
+    password: str = Field(..., min_length=8, example="password123")  
+  
+class UserAuth(BaseModel):  
+    username: str = Field(..., example="user1")  
+    password: str = Field(..., example="password123")  
+  
+class TokenResponse(BaseModel):  
+    status: str  
+    access_token: str  
+    refresh_token: str  
+  
+class TokenRefreshRequest(BaseModel):  
+    refresh_token: str  
+  
+class ProtectedResponse(BaseModel):  
+    status: str  
+    message: str  
+  
+# --- Helper Functions ---  
+  
+def create_access_token(username: str) -> str:  
+    payload = {  
+        'sub': username,  
+        'iat': datetime.datetime.utcnow(),  
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)  
+    }  
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)  
+    return token  
+  
+def create_refresh_token(username: str) -> str:  
+    payload = {  
+        'sub': username,  
+        'iat': datetime.datetime.utcnow(),  
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)  
+    }  
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)  
+    return token  
+  
+# --- API Endpoints ---  
+  
+@web_app.post('/register', tags=["Authentication"])  
+def register(user: UserRegister):  
+    """Registers a new user."""  
+    if not user.username or not user.password:  
+        raise HTTPException(status_code=400, detail="Username and password are required.")  
+  
+    if len(user.password) < 8:  
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")  
+  
+    if users_collection.find_one({'username': user.username}):  
+        raise HTTPException(status_code=400, detail="User already exists.")  
+  
+    # Hash the password for secure storage  
+    password_hash = pwd_context.hash(user.password)  
+  
+    users_collection.insert_one({  
+        'username': user.username,  
+        'password_hash': password_hash  
+    })  
+  
+    return {'status': 'ok', 'message': 'User registered successfully.'}  
+  
+@web_app.post('/authenticate', response_model=TokenResponse, tags=["Authentication"])  
+def authenticate(user: UserAuth):  
+    """Authenticates a user and returns JWT tokens."""  
+    db_user = users_collection.find_one({'username': user.username})  
+    if not db_user:  
+        raise HTTPException(status_code=404, detail="User not found.")  
+  
+    if not pwd_context.verify(user.password, db_user['password_hash']):  
+        raise HTTPException(status_code=401, detail="Invalid credentials.")  
+  
+    # Generate tokens  
+    access_token = create_access_token(user.username)  
+    refresh_token = create_refresh_token(user.username)  
+  
+    # Store refresh token  
+    refresh_tokens_collection.insert_one({  
+        'refresh_token': refresh_token,  
+        'username': user.username  
+    })  
+  
+    return {  
+        'status': 'ok',  
+        'access_token': access_token,  
+        'refresh_token': refresh_token  
+    }  
+  
+@web_app.post('/refresh', response_model=TokenResponse, tags=["Authentication"])  
+def refresh_token(data: TokenRefreshRequest):  
+    """Generates new access and refresh tokens."""  
+    stored_token = refresh_tokens_collection.find_one({'refresh_token': data.refresh_token})  
+  
+    if not stored_token:  
+        raise HTTPException(status_code=400, detail="Invalid refresh token.")  
+  
+    try:  
+        payload = jwt.decode(data.refresh_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])  
+        username = payload.get('sub')  
+  
+        # Generate new tokens  
+        access_token = create_access_token(username)  
+        new_refresh_token = create_refresh_token(username)  
+  
+        # Update refresh tokens  
+        refresh_tokens_collection.delete_one({'refresh_token': data.refresh_token})  
+        refresh_tokens_collection.insert_one({  
+            'refresh_token': new_refresh_token,  
+            'username': username  
+        })  
+  
+        return {  
+            'status': 'ok',  
+            'access_token': access_token,  
+            'refresh_token': new_refresh_token  
+        }  
+  
+    except ExpiredSignatureError:  
+        raise HTTPException(status_code=400, detail="Refresh token expired.")  
+    except InvalidTokenError:  
+        raise HTTPException(status_code=400, detail="Invalid refresh token.")  
+    except Exception as e:  
+        raise HTTPException(status_code=400, detail=str(e))  
+  
+@web_app.get('/protected', response_model=ProtectedResponse, tags=["Protected"])  
+def protected(Authorization: str = Header(None)):  
+    """A protected endpoint that requires a valid access token."""  
+    if not Authorization:  
+        raise HTTPException(status_code=401, detail="Missing Authorization header.")  
+  
+    try:  
+        token_type, token = Authorization.split()  
+        if token_type != 'Bearer':  
+            raise HTTPException(status_code=401, detail="Invalid token type.")  
+  
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])  
+        username = payload.get('sub')  
+  
+        return {'status': 'ok', 'message': f'Hello, {username}!'}  
+  
+    except ExpiredSignatureError:  
+        raise HTTPException(status_code=401, detail="Access token expired.")  
+    except Exception as e:  
+        raise HTTPException(status_code=401, detail=str(e))  
+  
+# --- Mount the FastAPI app with Modal ---  
+  
+@app.function()  
+@modal.asgi_app()  
+def fastapi_app():  
+    """Serves the FastAPI application."""  
+    return web_app  
+```
+
+---
+
    
 ## Appendix: Using the Authentication System Without the Browser Extension  
    
