@@ -742,30 +742,6 @@ Building a secure authentication system doesn't have to be daunting. By leveragi
 ---  
 
 # APPENDIX
-   
-### Security Best Practices  
-   
-- **Secure Token Storage**: Store tokens securely. In mobile and desktop apps, consider using secure storage mechanisms provided by the operating system.  
-- **HTTPS**: Always use HTTPS to communicate with the API to prevent man-in-the-middle attacks.  
-- **Token Handling**: Implement token refresh logic to handle expired access tokens.  
-- **Error Handling**: Gracefully handle errors and provide appropriate feedback to the user without exposing sensitive information.  
-   
-   
-### Advantages of API-First Approach  
-   
-- **Flexibility**: Clients can be built using different technologies (web, mobile, desktop).  
-- **Scalability**: The API can scale independently of the client applications.  
-- **Reusability**: The same API serves multiple clients, reducing development effort.  
-   
-### Conclusion  
-   
-Our authentication system is a robust, scalable solution that can be integrated into various types of applications. By decoupling the client from the server, we provide flexibility in how users interact with our services. Whether through a browser extension, web app, or mobile application, the core authentication logic remains consistent.  
-   
----  
-   
-# APPENDIX
-
-# APPENDIX
 
 ### Protecting API Routes
 
@@ -852,3 +828,23 @@ def get_protected_data(current_user: str = Depends(get_current_user)):
         You should receive a `401 Unauthorized` response, as the `get_current_user` dependency will prevent access.
 
 By following this pattern, you can easily secure any number of endpoints in your FastAPI application, ensuring that only authenticated users can access sensitive resources or perform privileged actions.
+
+---
+
+### Security Best Practices  
+   
+- **Secure Token Storage**: Store tokens securely. In mobile and desktop apps, consider using secure storage mechanisms provided by the operating system.  
+- **HTTPS**: Always use HTTPS to communicate with the API to prevent man-in-the-middle attacks.  
+- **Token Handling**: Implement token refresh logic to handle expired access tokens.  
+- **Error Handling**: Gracefully handle errors and provide appropriate feedback to the user without exposing sensitive information.  
+   
+   
+### Advantages of API-First Approach  
+   
+- **Flexibility**: Clients can be built using different technologies (web, mobile, desktop).  
+- **Scalability**: The API can scale independently of the client applications.  
+- **Reusability**: The same API serves multiple clients, reducing development effort.  
+   
+### Conclusion  
+   
+Our authentication system is a robust, scalable solution that can be integrated into various types of applications. By decoupling the client from the server, we provide flexibility in how users interact with our services. Whether through a browser extension, web app, or mobile application, the core authentication logic remains consistent.  
