@@ -53,12 +53,12 @@ Install the necessary Python packages:
 pip install fastapi[standard]==0.115.4 pymongo==4.7.2 pydantic==2.7.1 passlib==1.7.4 PyJWT==2.8.0 modal  
 ```  
    
-### 3. The `main.py` File  
+### 3. The `modal-app.py` File  
    
-Create a `main.py` file and paste the following code:  
+Create a `modal-app.py` file and paste the following code:  
    
 ```python  
-# main.py  
+# modal-app.py  
   
 import os  
 import jwt  
@@ -294,7 +294,6 @@ def fastapi_app():
   - `/register`: Allows new users to register.  
   - `/authenticate`: Authenticates users and provides JWT tokens.  
   - `/refresh`: Generates new tokens using a valid refresh token.  
-  - `/protected`: A secured endpoint that requires a valid access token.  
    
 ### 4. Deploying with Modal  
    
