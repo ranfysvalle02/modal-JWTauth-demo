@@ -3,17 +3,17 @@
 import os  
 import jwt  
 import datetime  
-from typing import Dict, Optional  
+from typing import Dict, Optional, List  
   
 from fastapi import FastAPI, HTTPException, Body, Depends, Header, status  
-from fastapi.responses import JSONResponse  
+from fastapi.responses import JSONResponse, HTMLResponse  
 from fastapi.middleware.cors import CORSMiddleware  
 from pydantic import BaseModel, Field  
 from passlib.context import CryptContext  
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError  
 import modal  
 from pymongo import MongoClient  
-from bson.objectid import ObjectId  
+from bson import ObjectId  
   
 # --- Configuration ---  
   
@@ -38,14 +38,14 @@ image = modal.Image.debian_slim(python_version="3.12").pip_install(
 )  
   
 # Create a Modal App instance.  
-app = modal.App("jwt-auth-api", image=image)  
+app = modal.App("wishlist-api", image=image)  
   
 # --- FastAPI App Setup ---  
   
 # Create the FastAPI app.  
 web_app = FastAPI(  
-    title="JWT Auth API",  
-    description="An API with JWT authentication using FastAPI, Modal, and MongoDB.",  
+    title="Wishlist API with Authentication",  
+    description="An API to manage items in a wishlist with JWT authentication using FastAPI, Modal, and MongoDB."  
 )  
   
 # Allow CORS for development purposes  
@@ -62,9 +62,10 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
   
 # --- Initialize MongoDB client ---  
 client = MongoClient(MONGO_URI)  
-db = client.auth_db  # Use a dedicated database for authentication  
+db = client.moonshop  # Use your database  
 users_collection = db.users  
 refresh_tokens_collection = db.refresh_tokens  
+
   
 # --- Pydantic Models ---  
   
@@ -83,10 +84,6 @@ class TokenResponse(BaseModel):
   
 class TokenRefreshRequest(BaseModel):  
     refresh_token: str  
-  
-class ProtectedResponse(BaseModel):  
-    status: str  
-    message: str  
   
 # --- Helper Functions ---  
   
@@ -108,7 +105,26 @@ def create_refresh_token(username: str) -> str:
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)  
     return token  
   
-# --- API Endpoints ---  
+def get_current_user(Authorization: str = Header(None)) -> str:  
+    """Decode the access token and return the username."""  
+    if not Authorization:  
+        raise HTTPException(status_code=401, detail="Missing Authorization header.")  
+  
+    try:  
+        token_type, token = Authorization.split()  
+        if token_type != 'Bearer':  
+            raise HTTPException(status_code=401, detail="Invalid token type.")  
+  
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])  
+        username = payload.get('sub')  
+        return username  
+  
+    except ExpiredSignatureError:  
+        raise HTTPException(status_code=401, detail="Access token expired.")  
+    except Exception as e:  
+        raise HTTPException(status_code=401, detail=str(e))  
+  
+# --- Authentication Endpoints ---  
   
 @web_app.post('/register', tags=["Authentication"])  
 def register(user: UserRegister):  
@@ -193,27 +209,6 @@ def refresh_token(data: TokenRefreshRequest):
         raise HTTPException(status_code=400, detail="Invalid refresh token.")  
     except Exception as e:  
         raise HTTPException(status_code=400, detail=str(e))  
-  
-@web_app.get('/protected', response_model=ProtectedResponse, tags=["Protected"])  
-def protected(Authorization: str = Header(None)):  
-    """A protected endpoint that requires a valid access token."""  
-    if not Authorization:  
-        raise HTTPException(status_code=401, detail="Missing Authorization header.")  
-  
-    try:  
-        token_type, token = Authorization.split()  
-        if token_type != 'Bearer':  
-            raise HTTPException(status_code=401, detail="Invalid token type.")  
-  
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])  
-        username = payload.get('sub')  
-  
-        return {'status': 'ok', 'message': f'Hello, {username}!'}  
-  
-    except ExpiredSignatureError:  
-        raise HTTPException(status_code=401, detail="Access token expired.")  
-    except Exception as e:  
-        raise HTTPException(status_code=401, detail=str(e))  
   
 # --- Mount the FastAPI app with Modal ---  
   

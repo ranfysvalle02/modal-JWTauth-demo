@@ -1,0 +1,377 @@
+<!DOCTYPE html>    
+<html lang="en">    
+<head>    
+  <meta charset="UTF-8">    
+  <title>Moonsh0p</title>    
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">    
+  <!-- Bootstrap CSS -->    
+  <link href="bootstrap/bootstrap.min.css" rel="stylesheet">    
+  <style>    
+    body {    
+      font-family: 'Inter', sans-serif;    
+      padding: 15px;    
+      background-color: #f9fafb;    
+      margin: 0 auto;    
+      width: 500px;    
+      height: 620px;    
+      overflow-y: auto;    
+      padding-top: 2em;    
+    }    
+    h1 {    
+      font-size: 24px;    
+      font-weight: 600;    
+      color: #374151;    
+      margin-bottom: 20px;    
+    }    
+    #loginButton, #logoutButton {    
+      width: 100%;    
+      transition: background-color 0.3s;    
+    }    
+    #loginButton:hover, #logoutButton:hover {    
+      background-color: #2563eb;    
+      color: #fff;    
+    }    
+    #authSection,    
+    #welcomeSection {    
+      transition: opacity 0.5s ease, transform 0.5s ease;    
+      /* Sections are hidden by default */    
+      display: none;    
+    }    
+    .section-visible {    
+      display: block !important;    
+    }    
+    .hidden {    
+      opacity: 0;    
+      transform: scale(0.95);    
+      pointer-events: none;    
+    }    
+    #authSection p {    
+      font-size: 14px;    
+      color: #374151;    
+      margin-bottom: 15px;    
+    }    
+  </style>    
+</head>    
+<body>    
+  <h1 class="text-center">Moonsh0p</h1>    
+    
+  <!-- Authentication Section -->    
+  <div id="authSection">    
+    <p class="text-center">    
+      Welcome to <strong>Moonsh0p</strong>!<br>    
+      Please log in or register to get started.    
+    </p>    
+    <div class="d-grid">    
+      <button id="loginButton" class="btn btn-primary mb-3">Login / Register</button>    
+    </div>    
+  </div>    
+    
+  <!-- Welcome Section (Visible when logged in) -->    
+  <div id="welcomeSection" class="hidden">    
+    <p id="welcomeMessage" class="text-center"></p>    
+    <div class="d-grid">    
+      <button id="logoutButton" class="btn btn-secondary mb-3">Logout</button>    
+    </div>    
+  </div>    
+    
+  <!-- Authentication Modal -->    
+  <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">    
+    <div class="modal-dialog modal-dialog-centered modal-sm">    
+      <div class="modal-content">    
+        <div class="modal-header">    
+          <h5 class="modal-title">Login or Register</h5>    
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>    
+        </div>    
+        <div class="modal-body">    
+          <!-- Username Input -->    
+          <div class="mb-3">    
+            <label for="usernameInput" class="form-label">Username</label>    
+            <input type="text" id="usernameInput" class="form-control" placeholder="Enter username">    
+          </div>    
+          <!-- Password Input -->    
+          <div class="mb-3">    
+            <label for="passwordInput" class="form-label">Password</label>    
+            <input type="password" id="passwordInput" class="form-control" placeholder="Enter password">    
+          </div>    
+        </div>    
+        <div class="modal-footer">    
+          <button type="button" id="loginModalButton" class="btn btn-primary">Login</button>    
+          <button type="button" id="registerModalButton" class="btn btn-success">Register</button>    
+        </div>    
+      </div>    
+    </div>    
+  </div>    
+    
+  <!-- Bootstrap JS -->    
+  <script src="bootstrap/bootstrap.bundle.min.js"></script>    
+  <script>    
+    // API Base URL    
+    const BASE_URL = 'https://ranfysvalle02--wishlist-api-fastapi-app.modal.run'; // Update this to your actual base URL    
+        
+    // API Endpoints    
+    const ENDPOINTS = {    
+      register: `${BASE_URL}/register`,    
+      authenticate: `${BASE_URL}/authenticate`,    
+      refresh: `${BASE_URL}/refresh`,    
+    };    
+        
+    // Authentication tokens    
+    let accessToken = '';    
+    let refreshToken = '';    
+        
+    // Function to store tokens in local storage    
+    function storeTokens(access, refresh) {    
+      accessToken = access;    
+      refreshToken = refresh;    
+      localStorage.setItem('accessToken', accessToken);    
+      localStorage.setItem('refreshToken', refreshToken);    
+    }    
+        
+    // Function to load tokens from local storage    
+    function loadTokens() {    
+      accessToken = localStorage.getItem('accessToken') || '';    
+      refreshToken = localStorage.getItem('refreshToken') || '';    
+    }    
+        
+    // Function to clear tokens    
+    function clearTokens() {    
+      accessToken = '';    
+      refreshToken = '';    
+      localStorage.removeItem('accessToken');    
+      localStorage.removeItem('refreshToken');    
+    }    
+        
+    // Function to check if the user is authenticated    
+    function isAuthenticated() {    
+      return !!accessToken;    
+    }    
+        
+    // Function to make authenticated API calls    
+    async function authenticatedFetch(url, options = {}) {    
+      if (!options.headers) {    
+        options.headers = {};    
+      }    
+      options.headers['Authorization'] = `Bearer ${accessToken}`;    
+        
+      let response = await fetch(url, options);    
+        
+      if (response.status === 401) {    
+        // Try to refresh the token    
+        const refreshed = await refreshAccessToken();    
+        if (refreshed) {    
+          options.headers['Authorization'] = `Bearer ${accessToken}`;    
+          response = await fetch(url, options);    
+        } else {    
+          // Failed to refresh token, force logout    
+          alert('Session expired. Please log in again.');    
+          logout();    
+          throw new Error('Authentication required');    
+        }    
+      }    
+        
+      return response;    
+    }    
+        
+    // Function to refresh access token    
+    async function refreshAccessToken() {    
+      if (!refreshToken) {    
+        return false;    
+      }    
+        
+      try {    
+        const response = await fetch(ENDPOINTS.refresh, {    
+          method: 'POST',    
+          headers: { 'Content-Type': 'application/json' },    
+          body: JSON.stringify({ refresh_token: refreshToken }),    
+        });    
+        
+        if (response.ok) {    
+          const data = await response.json();    
+          storeTokens(data.access_token, data.refresh_token);    
+          return true;    
+        } else {    
+          clearTokens();    
+          return false;    
+        }    
+      } catch (error) {    
+        console.error('Error refreshing token:', error);    
+        clearTokens();    
+        return false;    
+      }    
+    }    
+        
+    // Function to register a new user    
+    async function register(username, password) {    
+      try {    
+        const response = await fetch(ENDPOINTS.register, {    
+          method: 'POST',    
+          headers: { 'Content-Type': 'application/json' },    
+          body: JSON.stringify({ username, password }),    
+        });    
+        
+        if (response.ok) {    
+          alert('Registration successful! You can now log in.');    
+          return true;    
+        } else {    
+          const errorData = await response.json();    
+          alert('Registration failed: ' + (errorData.detail || 'Unknown error'));    
+          return false;    
+        }    
+      } catch (error) {    
+        console.error('Error registering:', error);    
+        alert('Error registering.');    
+        return false;    
+      }    
+    }    
+        
+    // Function to authenticate a user (login)    
+    async function login(username, password) {    
+      try {    
+        const response = await fetch(ENDPOINTS.authenticate, {    
+          method: 'POST',    
+          headers: { 'Content-Type': 'application/json' },    
+          body: JSON.stringify({ username, password }),    
+        });    
+        
+        if (response.ok) {    
+          const data = await response.json();    
+          storeTokens(data.access_token, data.refresh_token);    
+          // Store the username for display purposes    
+          localStorage.setItem('username', username);    
+          return true;    
+        } else {    
+          const errorData = await response.json();    
+          alert('Login failed: ' + (errorData.detail || 'Unknown error'));    
+          return false;    
+        }    
+      } catch (error) {    
+        console.error('Error logging in:', error);    
+        alert('Error logging in.');    
+        return false;    
+      }    
+    }    
+        
+    // Function to logout    
+    function logout() {    
+      clearTokens();    
+      // Clear stored username    
+      localStorage.removeItem('username');    
+      // Update UI    
+      const authSection = document.getElementById('authSection');    
+      const welcomeSection = document.getElementById('welcomeSection');    
+      showSection(authSection);    
+      hideSection(welcomeSection);    
+    }    
+        
+    // Smooth transitions when showing/hiding sections    
+    function showSection(section) {    
+      // Remove the 'hidden' class to start the transition    
+      section.classList.remove('hidden');    
+        
+      // Add the 'section-visible' class to ensure the section is displayed    
+      section.classList.add('section-visible');    
+        
+      // Force a reflow to ensure the transition starts correctly    
+      void section.offsetWidth;    
+    }    
+        
+    function hideSection(section) {    
+      // Check if section is already hidden    
+      if (section.classList.contains('hidden')) {    
+        return;    
+      }    
+        
+      // Define the event handler    
+      function handleTransitionEnd(event) {    
+        // Ensure the event is for opacity transition    
+        if (event.propertyName === 'opacity') {    
+          section.classList.remove('section-visible');    
+          // Clean up the event listener    
+          section.removeEventListener('transitionend', handleTransitionEnd);    
+        }    
+      }    
+        
+      // Add the transitionend event listener    
+      section.addEventListener('transitionend', handleTransitionEnd);    
+        
+      // Add the 'hidden' class to start the transition    
+      section.classList.add('hidden');    
+    }    
+        
+    // Event listener for the "Login / Register" button    
+    document.getElementById('loginButton').addEventListener('click', () => {    
+      // Show the modal    
+      const authModal = new bootstrap.Modal(document.getElementById('authModal'));    
+      authModal.show();    
+    });    
+        
+    // Event listener for the "Logout" button    
+    document.getElementById('logoutButton').addEventListener('click', () => {    
+      logout();    
+    });    
+        
+    // Event listener for the "Login" button in the auth modal    
+    document.getElementById('loginModalButton').addEventListener('click', async () => {    
+      const username = document.getElementById('usernameInput').value.trim();    
+      const password = document.getElementById('passwordInput').value;    
+        
+      if (username && password) {    
+        const success = await login(username, password);    
+        if (success) {    
+          // Hide the modal    
+          const authModal = bootstrap.Modal.getInstance(document.getElementById('authModal'));    
+          authModal.hide();    
+        
+          // Update UI    
+          const authSection = document.getElementById('authSection');    
+          const welcomeSection = document.getElementById('welcomeSection');    
+          hideSection(authSection);    
+          showSection(welcomeSection);    
+          document.getElementById('welcomeMessage').textContent = 'Welcome, ' + username + '!';    
+        
+          // Clear input fields    
+          document.getElementById('usernameInput').value = '';    
+          document.getElementById('passwordInput').value = '';    
+        }    
+      } else {    
+        alert('Please enter username and password.');    
+      }    
+    });    
+        
+    // Event listener for the "Register" button in the auth modal    
+    document.getElementById('registerModalButton').addEventListener('click', async () => {    
+      const username = document.getElementById('usernameInput').value.trim();    
+      const password = document.getElementById('passwordInput').value;    
+        
+      if (username && password) {    
+        const success = await register(username, password);    
+        if (success) {    
+          // Clear input fields    
+          document.getElementById('usernameInput').value = '';    
+          document.getElementById('passwordInput').value = '';    
+        }    
+      } else {    
+        alert('Please enter username and password.');    
+      }    
+    });    
+        
+    // Display the correct sections when the page loads    
+    document.addEventListener('DOMContentLoaded', () => {    
+      loadTokens();    
+      const authSection = document.getElementById('authSection');    
+      const welcomeSection = document.getElementById('welcomeSection');    
+        
+      if (isAuthenticated()) {    
+        hideSection(authSection);    
+        showSection(welcomeSection);    
+        
+        const username = localStorage.getItem('username') || 'User';    
+        document.getElementById('welcomeMessage').textContent = 'Welcome, ' + username + '!';    
+      } else {    
+        showSection(authSection);    
+        hideSection(welcomeSection);    
+      }    
+    });    
+  </script>    
+</body>    
+</html>    
