@@ -30,7 +30,7 @@ Before diving in, ensure you have the following set up:
    
 - A **Modal** account. Sign up at [modal.com](https://modal.com) if you haven't already.  
 - Basic knowledge of Python and JavaScript.  
-- Familiarity with concepts like APIs, JWT, and browser extensions.  
+- Familiarity with concepts like APIs, JWT, and web development in general.  
    
 ## Setting Up the Backend with FastAPI and MongoDB  
    
@@ -695,7 +695,7 @@ Modal takes care of building the container, deploying the application, and scali
    
 1. **User Registration**: The user enters a username and password in the demo page, which sends a request to the `/register` endpoint. The API hashes the password and stores the user in MongoDB.  
    
-2. **User Authentication**: When logging in, the demo page sends credentials to the `/authenticate` endpoint. The API verifies the credentials, generates JWT access and refresh tokens, and returns them to the extension.  
+2. **User Authentication**: When logging in, the demo page sends credentials to the `/authenticate` endpoint. The API verifies the credentials, generates JWT access and refresh tokens, and returns them to the demo page.  
    
 3. **Accessing Protected Resources**: The demo page uses the access token to make authenticated requests to protected endpoints like `/protected`. If the access token is expired, it uses the refresh token to obtain a new access token via the `/refresh` endpoint.  
    
@@ -715,7 +715,7 @@ Modal takes care of building the container, deploying the application, and scali
    
 ## Conclusion  
    
-Building a secure authentication system doesn't have to be daunting. By leveraging powerful tools like MongoDB, JWT, FastAPI, and Modal, we can create robust applications that scale seamlessly. Additionally, integrating with client-side applications like browser extensions demonstrates the flexibility of our API.  
+Building a secure authentication system doesn't have to be daunting. By leveraging powerful tools like MongoDB, JWT, FastAPI, and Modal, we can create robust applications that scale seamlessly. 
    
 **Next Steps**:  
    
