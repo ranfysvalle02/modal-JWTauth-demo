@@ -763,3 +763,92 @@ Our authentication system is a robust, scalable solution that can be integrated 
    
 ---  
    
+# APPENDIX
+
+# APPENDIX
+
+### Protecting API Routes
+
+One of the primary goals of an authentication system is to secure specific API endpoints, ensuring that only authenticated and authorized users can access them. In our FastAPI application, this is elegantly achieved using FastAPI's Dependency Injection system and our `get_current_user` helper function.
+
+The `get_current_user` function acts as a gatekeeper. It expects a valid JWT access token in the `Authorization: Bearer <token>` header. If the token is missing, invalid, or expired, it will raise an `HTTPException`, preventing the request from reaching your route's logic. If the token is valid, it extracts the `username` and passes it to your route function, allowing you to perform user-specific operations.
+
+**How to Protect a Route:**
+
+To protect any FastAPI endpoint, simply add `current_user: str = Depends(get_current_user)` as a parameter to your path operation function. FastAPI will automatically handle the dependency resolution and token validation.
+
+**Sample Code: Protecting a `/protected-data` Endpoint**
+
+Let's illustrate this by adding a new endpoint `/protected-data` that is only accessible to users who provide a valid access token.
+
+First, you might want to add a simple Pydantic model for the response of your protected endpoint:
+
+```python
+# In modal-app.py, within the 'Pydantic Models' section
+# ... (existing models) ...
+
+class ProtectedDataResponse(BaseModel):
+    message: str
+    user: str
+    access_timestamp: datetime.datetime
+```
+
+Then, add the actual protected endpoint to your FastAPI `web_app`:
+
+```python
+# In modal-app.py, below your authentication endpoints
+# ... (existing authentication endpoints like /register, /authenticate, /refresh) ...
+
+@web_app.get('/protected-data', response_model=ProtectedDataResponse, tags=["Protected Resources"])
+def get_protected_data(current_user: str = Depends(get_current_user)):
+    """
+    Retrieves a sample message accessible only by authenticated users.
+    The 'current_user' string is injected by the get_current_user dependency.
+    """
+    return {
+        "message": f"Hello {current_user}! You have successfully accessed a protected resource.",
+        "user": current_user,
+        "access_timestamp": datetime.datetime.utcnow()
+    }
+```
+
+**Explanation:**
+
+* **`@web_app.get('/protected-data', ...)`**: This defines a new GET endpoint at the `/protected-data` path.
+* **`current_user: str = Depends(get_current_user)`**: This is the key line for protection.
+    * FastAPI will first call `get_current_user`.
+    * If `get_current_user` encounters any issues (e.g., missing/invalid/expired token), it will raise an `HTTPException` (e.g., 401 Unauthorized), and FastAPI will immediately return that error to the client. The `get_protected_data` function will *not* be executed.
+    * If `get_current_user` successfully decodes a valid access token, it will return the `username` from the token's payload. This `username` is then passed as the `current_user` argument to your `get_protected_data` function.
+* **Response**: The function then returns a dictionary that FastAPI automatically converts into a JSON response, including the authenticated `username` and the time of access.
+
+**How to Test This Protected Endpoint:**
+
+1.  **Deploy your Modal App:** Ensure your `modal-app.py` (with the new protected route) is deployed:
+    ```bash
+    modal deploy modal-app.py
+    ```
+2.  **Log In via `index.html`:** Use your `index.html` page to register and log in a user. Once logged in, your browser's local storage will contain the `accessToken` and `refreshToken`.
+3.  **Make an Authenticated Request:** You can use your browser's developer console or a tool like Postman/Insomnia/cURL to make a request to the protected endpoint.
+
+    * **Successful Request (with valid token):**
+        ```bash
+        curl -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE" \
+             https://<your-modal-app-base-url>/protected-data
+        ```
+        (Replace `YOUR_ACCESS_TOKEN_HERE` with the token obtained after login, and `<your-modal-app-base-url>` with the actual URL from your Modal deployment).
+
+        You should receive a `200 OK` response with the protected message.
+
+    * **Unauthenticated Request (no token or invalid token):**
+        ```bash
+        curl https://<your-modal-app-base-url>/protected-data
+        ```
+        or
+        ```bash
+        curl -H "Authorization: Bearer an_invalid_token" \
+             https://<your-modal-app-base-url>/protected-data
+        ```
+
+        You should receive a `401 Unauthorized` response, as the `get_current_user` dependency will prevent access.
+
+By following this pattern, you can easily secure any number of endpoints in your FastAPI application, ensuring that only authenticated users can access sensitive resources or perform privileged actions.
