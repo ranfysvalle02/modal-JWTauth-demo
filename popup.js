@@ -1,3 +1,5 @@
+// TODO: change URL to https://ranfysvalle02--wishlist-api-fastapi-app.modal.run; only use relevant parts; NO EXTENSION, just index.html; Talk about how this all came to be.
+
 document.addEventListener('DOMContentLoaded', () => {  
   init();  
 });  
